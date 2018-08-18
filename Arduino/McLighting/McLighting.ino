@@ -1,5 +1,10 @@
 #include "definitions.h"
 #include "version.h"
+#ifdef ENABLE_OLED
+  #include "SSD1306.h"
+  // Initialize the OLED display using Wire library
+  SSD1306  display(0x3c, D2, D1); // D2 -> SDA D1 ->SCL
+#endif
 // ***************************************************************************
 // Load libraries for: WebServer / WiFiManager / WebSockets
 // ***************************************************************************
@@ -51,7 +56,6 @@
   WiFiEventHandler wifiConnectHandler;
   WiFiEventHandler wifiDisconnectHandler;
 #endif
-
 
 // ***************************************************************************
 // Instanciate HTTP(80) / WebSockets(81) Server
@@ -147,7 +151,7 @@ void tick()
     DBG_OUTPUT_PORT.printf("readEEPROM(): %s\n", res.c_str());
     return res;
   }
-  
+
   void writeEEPROM(int offset, int len, String value) {
     DBG_OUTPUT_PORT.printf("writeEEPROM(): %s\n", value.c_str());
     for (int i = 0; i < len; ++i)
@@ -187,6 +191,11 @@ String getValue(String data, char separator, int index)
 // ***************************************************************************
 //gets called when WiFiManager enters configuration mode
 void configModeCallback (WiFiManager *myWiFiManager) {
+#ifdef ENABLE_OLED
+  display.clear();
+  drawLogo();
+  display.display();
+#endif
   DBG_OUTPUT_PORT.println("Entered config mode");
   DBG_OUTPUT_PORT.println(WiFi.softAPIP());
   //if you used auto generated SSID, print it
@@ -206,6 +215,33 @@ void saveConfigCallback () {
   DBG_OUTPUT_PORT.println("Should save config");
   shouldSaveConfig = true;
 }
+//****************************************************************************
+// Display
+//****************************************************************************
+#ifdef ENABLE_OLED
+void DisplayWelcomme() {
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.setFont(ArialMT_Plain_24);
+  display.drawString(64, 18, "McLighting");
+  display.display();
+}
+void DisplayIP(){
+	display.clear();
+	display.setTextAlignment(TEXT_ALIGN_CENTER);
+	display.setFont(ArialMT_Plain_16);
+	display.drawString(64, 4, "McLighting");
+	display.setFont(ArialMT_Plain_10);
+	display.drawString(64,20, String(WiFi.localIP().toString()));
+	display.display();
+}
+void drawLogo() {
+	#include "WifiLogo.h"
+    // see http://blog.squix.org/2015/05/esp8266-nodemcu-how-to-create-xbm.html
+    // on how to create xbm files
+    display.drawXbm(34, 14, WiFi_Logo_width, WiFi_Logo_height, WiFi_Logo_bits);
+}
+
+#endif
 
 // ***************************************************************************
 // Include: Webserver
@@ -270,6 +306,19 @@ void setup() {
   //strip.setMode(FX_MODE_RAINBOW_CYCLE);
   strip.setColor(main_color.red, main_color.green, main_color.blue);
   strip.start();
+
+//******************************************************************************
+// Setup: OLED display
+//******************************************************************************
+#ifdef ENABLE_OLED
+  // Initialising display.
+  display.init();
+  display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_10);
+  display.clear();
+  // Print Welcomme
+  DisplayWelcomme();
+#endif
 
   // ***************************************************************************
   // Setup: WiFiManager
@@ -354,7 +403,7 @@ void setup() {
       }
     #endif
   #endif
-  
+
   #ifdef ENABLE_AMQTT
     wifiConnectHandler = WiFi.onStationModeGotIP(onWifiConnect);
     wifiDisconnectHandler = WiFi.onStationModeDisconnected(onWifiDisconnect);
@@ -362,6 +411,9 @@ void setup() {
 
   //if you get here you have connected to the WiFi
   DBG_OUTPUT_PORT.println("connected...yeey :)");
+#ifdef ENABLE_OLED
+  DisplayIP();
+#endif
   ticker.detach();
   //keep LED on
   digitalWrite(BUILTIN_LED, LOW);
@@ -493,10 +545,10 @@ void setup() {
     //// json += ", \"analog\":" + String(analogRead(A0));
     //// json += ", \"gpio\":" + String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
     //json += "}";
-    
+
     DynamicJsonBuffer jsonBuffer(JSON_OBJECT_SIZE(9));
     JsonObject& json = jsonBuffer.createObject();
-  
+
     json["HOSTNAME"] = HOSTNAME;
     json["version"] = SKETCH_VERSION;
     json["heap"] = ESP.getFreeHeap();
@@ -706,7 +758,7 @@ void setup() {
         if(!spiffs_save_state.active()) spiffs_save_state.once(3, tickerSpiffsSaveState);
       #endif
     });
-  
+
     server.on("/rainbow", []() {
       exit_func = true;
       mode = RAINBOW;
@@ -725,7 +777,7 @@ void setup() {
         if(!spiffs_save_state.active()) spiffs_save_state.once(3, tickerSpiffsSaveState);
       #endif
     });
-  
+
     server.on("/rainbowCycle", []() {
       exit_func = true;
       mode = RAINBOWCYCLE;
@@ -744,7 +796,7 @@ void setup() {
         if(!spiffs_save_state.active()) spiffs_save_state.once(3, tickerSpiffsSaveState);
       #endif
     });
-  
+
     server.on("/theaterchase", []() {
       exit_func = true;
       mode = THEATERCHASE;
@@ -763,7 +815,7 @@ void setup() {
         if(!spiffs_save_state.active()) spiffs_save_state.once(3, tickerSpiffsSaveState);
       #endif
     });
-  
+
     server.on("/twinkleRandom", []() {
       exit_func = true;
       mode = TWINKLERANDOM;
@@ -782,7 +834,7 @@ void setup() {
         if(!spiffs_save_state.active()) spiffs_save_state.once(3, tickerSpiffsSaveState);
       #endif
     });
-    
+
     server.on("/theaterchaseRainbow", []() {
       exit_func = true;
       mode = THEATERCHASERAINBOW;
@@ -801,7 +853,7 @@ void setup() {
         if(!spiffs_save_state.active()) spiffs_save_state.once(3, tickerSpiffsSaveState);
       #endif
     });
-  
+
     server.on("/tv", []() {
       exit_func = true;
       mode = TV;
@@ -911,7 +963,7 @@ void loop() {
 //   if(!ha_send_data.active())  ha_send_data.once(5, tickerSendState);
    if (new_ha_mqtt_msg) sendState();
   #endif
-          
+
   // Simple statemachine that handles the different modes
   if (mode == SET_MODE) {
     DBG_OUTPUT_PORT.printf("SET_MODE: %d %d\n", ws2812fx_mode, mode);
